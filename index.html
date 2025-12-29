@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PokéMaster: Modo Difícil</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Roboto:wght@400;700&display=swap');
+
+        :root {
+            --primary: #3B4CCA;
+            --secondary: #FFDE00;
+            --danger: #CC0000;
+            --success: #4CAF50;
+            --locked: #7f8c8d;
+            --bg-gradient: linear-gradient(135deg, #2c3e50, #4ca1af);
+        }
+
+        body {
+            font-family: 'Roboto', sans-serif;
+            background: var(--bg-gradient);
+            min-height: 100vh;
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: #333;
+        }
+
+        .container {
+            background: rgba(255, 255, 255, 0.96);
+            padding: 1.5rem;
+            border-radius: 20px;
+            box-shadow: 0 15px 35px rgba(0,0,0,0.4);
+            width: 95%;
+            max-width: 450px;
+            text-align: center;
+            max-height: 95vh;
+            overflow-y: auto;
+            position: relative;
+        }
+
+        h1, h2 {
+            font-family: 'Press Start 2P', cursive;
+            color: var(--primary);
+            line-height: 1.5;
+            font-size: 1rem;
+            margin-top: 0;
+        }
+
+        /* --- MENÚ --- */
+        .gen-card {
+            background: white;
+            border: 2px solid #eee;
+            border-radius: 12px;
+            margin-bottom: 10px;
+            padding: 10px;
+            cursor: pointer;
+            transition: 0.2s;
+            text-align: left;
+        }
+
+        .gen-card:hover:not(.locked) {
+            transform: scale(1.02);
+            border-color: var(--primary);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+
+        .gen-card.locked {
+            background-color: #f0f0f0;
+            cursor: not-allowed;
+            opacity: 0.6;
+        }
+
+        .gen-card.completed {
+            background: #e8f5e9;
+            border-color: var(--success);
+        }
+
+        .progress-bar {
+            background: #ddd;
+            height: 6px;
+            border-radius: 3px;
+            margin-top: 5px;
+            overflow: hidden;
+        }
+        .progress-fill {
+            background: var(--success);
+            height: 100%;
+            width: 0%;
+            transition: width 0.5s;
+        }
+
+        /* --- JUEGO --- */
+        .hud {
+            display: flex;
+            justify-content: space-between;
+            background: #eee;
+            padding: 10px;
+            border-radius: 10px;
+            margin-bottom: 15px;
+            font-weight: bold;
+            font-size: 0.9rem;
+        }
+
+        .image-box {
+            width: 160px;
+            height: 160px;
+            margin: 0 auto 15px;
+            background: #fff;
+            border-radius: 50%;
+            border: 4px solid var(--secondary);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            position: relative;
+            box-shadow: inset 0 0 20px rgba(0,0,0,0.1);
+        }
+
+        .poke-img {
+            max-width: 85%;
+            max-height: 85%;
+            filter: brightness(0);
+            transition: filter 0.5s;
+        }
+        .poke-img.revealed { filter: brightness(1); }
+
+        .options-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+        }
+
+        button.option-btn {
+            background: white;
+            color: #333;
+            border: 2px solid var(--primary);
+            padding: 10px 5px;
+            border-radius: 8px;
+            font-weight: bold;
+            font-size: 0.85rem;
+            text-transform: capitalize;
+            cursor: pointer;
+            transition: 0.1s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 50px;
+        }
+
+        button.option-btn:hover:not(:disabled) {
+            background: var(--primary);
+            color: white;
+        }
+
+        button.correct { background: var(--success) !important; color: white !important; border-color: var(--success) !important; }
+        button.wrong { background: var(--danger) !important; color: white !important; border-color: var(--danger) !important; }
+
+        .loader {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid var(--primary);
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+            position: absolute;
+        }
+
+        .loading-overlay {
+            position: absolute;
+            top:0; left:0; right:0; bottom:0;
+            background: rgba(255,255,255,0.9);
+            z-index: 100;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            border-radius: 20px;
+        }
+
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        
+        .hidden { display: none !important; }
+        .btn-small {
+            margin-top: 15px;
+            padding: 8px 16px;
+            background: transparent;
+            border: 1px solid #666;
+            border-radius: 20px;
+            cursor: pointer;
+        }
+
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        
+        <div id="init-loading" class="loading-overlay">
+            <div class="loader" style="position:relative; margin-bottom:10px;"></div>
+            <p>Descargando Pokédex Global...</p>
+            <small style="color:#666">Necesario para encontrar nombres similares</small>
+        </div>
+
+        <div id="menu-screen" class="hidden">
+            <h1>POKÉMON HARDCORE</h1>
+            <p style="font-size:0.8rem">Trampas: Evoluciones y nombres parecidos.</p>
+            <div id="gen-list"></div>
+            <button class="btn-small" style="color:red; border-color:red" onclick="resetProgress()">Borrar Progreso</button>
+        </div>
+
+        <div id="game-screen" class="hidden">
+            <h2 id="region-title">Región</h2>
+            
+            <div class="hud">
+                <span style="color:var(--danger)">Vidas: <span id="lives-display">❤️❤️❤️❤️</span></span>
+                <span>Faltan: <span id="remaining-display">0</span></span>
+            </div>
+
+            <div class="image-box">
+                <div class="loader" id="loader"></div>
+                <img id="pokemon-image" class="poke-img" alt="Pokemon">
+            </div>
+
+            <div id="options-container" class="options-grid"></div>
+            <p id="feedback-msg" style="height: 1.2rem; font-weight:bold; margin: 10px 0; font-size: 0.9rem;"></p>
+
+            <button class="btn-small" onclick="showMenu()">Salir al Menú</button>
+        </div>
+
+    </div>
+
+    <script>
+        // --- CONFIGURACIÓN ---
+        const generations = [
+            { id: 1, name: "Kanto", start: 1, end: 151 },
+            { id: 2, name: "Johto", start: 152, end: 251 },
+            { id: 3, name: "Hoenn", start: 252, end: 386 },
+            { id: 4, name: "Sinnoh", start: 387, end: 493 },
+            { id: 5, name: "Unova", start: 494, end: 649 },
+            { id: 6, name: "Kalos", start: 650, end: 721 },
+            { id: 7, name: "Alola", start: 722, end: 809 },
+            { id: 8, name: "Galar", start: 810, end: 905 },
+            { id: 9, name: "Paldea", start: 906, end: 1025 }
+        ];
+
+        // --- ESTADO ---
+        let allPokemonList = []; // Lista maestra {name, url}
+        let caughtPokemon = [];
+        let activeGen = null;
+        let lives = 4;
+        let currentPokemon = null;
+        let isProcessing = false;
+
+        // --- INICIO ---
+        window.onload = async () => {
+            loadProgress();
+            await fetchAllPokemonNames(); // Descarga la lista completa
+            document.getElementById('init-loading').classList.add('hidden');
+            showMenu();
+        };
+
+        async function fetchAllPokemonNames() {
+            try {
+                // Pedimos todos los pokemon de una vez para poder hacer busquedas de nombres similares
+                const res = await fetch('https://pokeapi.co/api/v2/pokemon?limit=1025');
+                const data = await res.json();
+                allPokemonList = data.results;
+            } catch (e) {
+                alert("Error conectando con PokéAPI. Recarga la página.");
+            }
+        }
+
+        // --- LÓGICA DE DIFICULTAD (SIMILARIDAD + EVOLUCIONES) ---
+        
+        // Algoritmo de Levenshtein para encontrar textos similares
+        function getLevenshteinDistance(a, b) {
+            const matrix = [];
+            for(let i=0; i<=b.length; i++) matrix[i] = [i];
+            for(let j=0; j<=a.length; j++) matrix[0][j] = j;
+            for(let i=1; i<=b.length; i++){
+                for(let j=1; j<=a.length; j++){
+                    if(b.charAt(i-1) == a.charAt(j-1)){
+                        matrix[i][j] = matrix[i-1][j-1];
+                    } else {
+                        matrix[i][j] = Math.min(matrix[i-1][j-1] + 1, Math.min(matrix[i][j-1] + 1, matrix[i-1][j] + 1));
+                    }
+                }
+            }
+            return matrix[b.length][a.length];
+        }
+
+        function getSimilarNames(targetName, count = 2) {
+            // Filtramos nombres que tengan una distancia entre 2 y 4 (muy parecidos pero no idénticos)
+            // Y que no sean el mismo nombre
+            const candidates = allPokemonList.filter(p => {
+                if (p.name === targetName) return false;
+                const dist = getLevenshteinDistance(targetName, p.name);
+                return dist >= 2 && dist <= 4; 
+            });
+            
+            // Mezclamos y devolvemos
+            candidates.sort(() => Math.random() - 0.5);
+            return candidates.slice(0, count).map(c => c.name);
+        }
+
+        async function getEvolutionFamily(speciesUrl) {
+            try {
+                const res = await fetch(speciesUrl);
+                const data = await res.json();
+                const evoRes = await fetch(data.evolution_chain.url);
+                const evoData = await evoRes.json();
+                
+                let family = [];
+                let chain = evoData.chain;
+                
+                // Recorrer árbol de evolución (aplanarlo)
+                if (chain) family.push(chain.species.name);
+                if (chain.evolves_to.length > 0) {
+                    chain.evolves_to.forEach(first => {
+                        family.push(first.species.name);
+                        if (first.evolves_to.length > 0) {
+                            first.evolves_to.forEach(second => {
+                                family.push(second.species.name);
+                            });
+                        }
+                    });
+                }
+                return family; // Retorna array de nombres ['pichu', 'pikachu', 'raichu']
+            } catch (e) {
+                console.error("Error fetching evolutions", e);
+                return [];
+            }
+        }
+
+        // --- JUEGO ---
+
+        async function loadTurn() {
+            if (lives <= 0) return;
+
+            // 1. Calcular pendientes
+            const pendingIds = [];
+            for (let i = activeGen.start; i <= activeGen.end; i++) {
+                if (!caughtPokemon.includes(i)) pendingIds.push(i);
+            }
+            document.getElementById('remaining-display').textContent = pendingIds.length;
+
+            if (pendingIds.length === 0) {
+                alert(`¡Región ${activeGen.name} completada!`);
+                showMenu();
+                return;
+            }
+
+            // UI Reset
+            isProcessing = true;
+            document.getElementById('options-container').innerHTML = '';
+            document.getElementById('feedback-msg').textContent = '';
+            const imgEl = document.getElementById('pokemon-image');
+            imgEl.style.display = 'none';
+            imgEl.classList.remove('revealed');
+            document.getElementById('loader').style.display = 'block';
+
+            // 2. Elegir Target
+            const targetId = pendingIds[Math.floor(Math.random() * pendingIds.length)];
+            
+            try {
+                // Obtener datos básicos
+                const res = await fetch(`https://pokeapi.co/api/v2/pokemon/${targetId}`);
+                currentPokemon = await res.json();
+
+                // 3. GENERAR OPCIONES AVANZADAS
+                const correctName = currentPokemon.name;
+                let distractors = [];
+
+                // A. Intentar obtener evoluciones (Familia)
+                // Necesitamos la URL de species
+                const familyNames = await getEvolutionFamily(currentPokemon.species.url);
+                
+                // Filtrar el nombre correcto de la familia para no duplicarlo
+                const relatives = familyNames.filter(n => n !== correctName);
+                distractors.push(...relatives);
+
+                // B. Obtener nombres fonéticamente similares
+                const similarNames = getSimilarNames(correctName, 4); // Pedimos extras por si acaso
+                distractors.push(...similarNames);
+
+                // C. Rellenar con randoms si faltan (por si no tiene familia o similares cercanos)
+                while (distractors.length < 3) {
+                    const randomPoke = allPokemonList[Math.floor(Math.random() * allPokemonList.length)];
+                    if (randomPoke.name !== correctName && !distractors.includes(randomPoke.name)) {
+                        distractors.push(randomPoke.name);
+                    }
+                }
+
+                // D. Seleccionar solo 3 distractores finales únicos
+                distractors = [...new Set(distractors)].slice(0, 3);
+                
+                // E. Combinar y mezclar
+                let finalOptions = [correctName, ...distractors];
+                finalOptions.sort(() => Math.random() - 0.5);
+
+                // 4. Renderizar
+                imgEl.src = currentPokemon.sprites.other['official-artwork'].front_default || currentPokemon.sprites.front_default;
+                imgEl.onload = () => {
+                    document.getElementById('loader').style.display = 'none';
+                    imgEl.style.display = 'block';
+                };
+
+                const optionsContainer = document.getElementById('options-container');
+                finalOptions.forEach(name => {
+                    const btn = document.createElement('button');
+                    btn.className = 'option-btn';
+                    btn.textContent = name.replace(/-/g, ' ');
+                    btn.onclick = () => checkAnswer(name, btn);
+                    optionsContainer.appendChild(btn);
+                });
+
+                isProcessing = false;
+
+            } catch (e) {
+                console.error(e);
+                setTimeout(loadTurn, 1000); // Retry
+            }
+        }
+
+        function checkAnswer(selectedName, btn) {
+            if (isProcessing) return;
+            isProcessing = true;
+
+            const correctName = currentPokemon.name;
+            const allBtns = document.querySelectorAll('.option-btn');
+
+            if (selectedName === correctName) {
+                // GANAR
+                btn.classList.add('correct');
+                document.getElementById('pokemon-image').classList.add('revealed');
+                document.getElementById('feedback-msg').textContent = "¡Correcto!";
+                document.getElementById('feedback-msg').style.color = "green";
+                
+                caughtPokemon.push(currentPokemon.id);
+                saveProgress();
+                
+                setTimeout(loadTurn, 1500);
+            } else {
+                // PERDER
+                btn.classList.add('wrong');
+                allBtns.forEach(b => {
+                    if (b.textContent === correctName.replace(/-/g, ' ')) b.classList.add('correct');
+                });
+
+                lives--;
+                updateLivesUI();
+                
+                // Mensaje explicativo si era familia
+                let msg = `Era ${correctName}.`;
+                // Chequeo rápido si el seleccionado era una evolución (simple check de string)
+                // En una app más compleja verificaríamos la familia real, pero esto basta
+                document.getElementById('feedback-msg').textContent = msg;
+                document.getElementById('feedback-msg').style.color = "red";
+
+                if (lives > 0) {
+                    setTimeout(loadTurn, 2500); // Más tiempo para ver el error
+                } else {
+                    setTimeout(() => {
+                        alert("¡GAME OVER! Vuelve a intentar.");
+                        showMenu();
+                    }, 1000);
+                }
+            }
+        }
+
+        // --- SISTEMA DE GUARDADO Y MENÚ (Igual que antes) ---
+        function loadProgress() {
+            const saved = localStorage.getItem('pokedex_hard_caught');
+            if (saved) caughtPokemon = JSON.parse(saved);
+        }
+        function saveProgress() {
+            localStorage.setItem('pokedex_hard_caught', JSON.stringify(caughtPokemon));
+        }
+        function resetProgress() {
+            if(confirm("¿Reiniciar todo?")) {
+                localStorage.removeItem('pokedex_hard_caught');
+                caughtPokemon = [];
+                renderMenu();
+            }
+        }
+        function updateLivesUI() {
+            let hearts = "";
+            for(let i=0; i<lives; i++) hearts += "❤️";
+            for(let i=lives; i<4; i++) hearts += "🖤";
+            document.getElementById('lives-display').textContent = hearts;
+        }
+
+        function renderMenu() {
+            const list = document.getElementById('gen-list');
+            list.innerHTML = '';
+            let prevDone = true;
+
+            generations.forEach(gen => {
+                const total = gen.end - gen.start + 1;
+                const done = caughtPokemon.filter(id => id >= gen.start && id <= gen.end).length;
+                const isCompleted = done === total;
+                const pct = (done / total) * 100;
+
+                const card = document.createElement('div');
+                card.className = `gen-card ${prevDone ? '' : 'locked'} ${isCompleted ? 'completed' : ''}`;
+                
+                let html = `<div><strong>${gen.name}</strong> <span style="float:right">${done}/${total}</span></div>`;
+                html += `<div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>`;
+                
+                if(!prevDone) {
+                    html = `<div style="color:#999; text-align:center">🔒 Bloqueado</div>`;
+                }
+
+                card.innerHTML = html;
+                if(prevDone) card.onclick = () => startGame(gen);
+                list.appendChild(card);
+                prevDone = isCompleted;
+            });
+        }
+
+        function showMenu() {
+            document.getElementById('game-screen').classList.add('hidden');
+            document.getElementById('menu-screen').classList.remove('hidden');
+            renderMenu();
+        }
+
+        function startGame(gen) {
+            activeGen = gen;
+            lives = 4;
+            updateLivesUI();
+            document.getElementById('menu-screen').classList.add('hidden');
+            document.getElementById('game-screen').classList.remove('hidden');
+            document.getElementById('region-title').textContent = gen.name;
+            loadTurn();
+        }
+    </script>
+</body>
+</html>
